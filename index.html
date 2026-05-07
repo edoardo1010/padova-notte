@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Padova Notte — eventi & serate</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!--
+    Papa Parse: libreria gratuita per leggere file CSV in JavaScript.
+    Gestisce virgole, virgolette e caratteri speciali in modo affidabile.
+  -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root {
+      --sfondo:         #0d0d0d;
+      --superficie:     #181818;
+      --bordo:          #2a2a2a;
+      --testo:          #f0ede8;
+      --testo-muto:     #888480;
+      --accento:        #ff6b35;
+      --altezza-header: 64px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--sfondo);
+      color: var(--testo);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      height: var(--altezza-header);
+      padding: 0 1.5rem;
+      border-bottom: 1px solid var(--bordo);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: var(--sfondo);
+      position: relative;
+      z-index: 100;
+    }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.05em; color: var(--testo); text-decoration: none; }
+    .logo span { color: var(--accento); }
+    .contatore { font-size: 0.8rem; color: var(--testo-muto); }
+    .contatore strong { color: var(--accento); font-weight: 600; }
+
+    /* ── LAYOUT ── */
+    .layout { display: flex; height: calc(100vh - var(--altezza-header)); }
+
+    /* ── PANNELLO LISTA ── */
+    .pannello-lista {
+      width: 420px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      border-right: 1px solid var(--bordo);
+      padding: 1.5rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.875rem;
+    }
+    .pannello-lista::-webkit-scrollbar { width: 4px; }
+    .pannello-lista::-webkit-scrollbar-thumb { background: var(--bordo); border-radius: 2px; }
+
+    .lista-header { margin-bottom: 0.5rem; }
+    .lista-header h1 { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; line-height: 1; letter-spacing: 0.03em; }
+    .lista-header h1 em { color: var(--accento); font-style: normal; }
+    .lista-header p { font-size: 0.8rem; color: var(--testo-muto); margin-top: 0.25rem; }
+
+    /* ── STATO DI CARICAMENTO ── */
+    /*
+      Mentre il sito scarica i dati dal Google Sheet mostriamo
+      un messaggio di attesa. Sparisce non appena i dati arrivano.
+    */
+    .stato-caricamento {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 3rem 1rem;
+      color: var(--testo-muto);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+    /* Cerchio rotante (spinner) fatto in CSS puro */
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--bordo);
+      border-top-color: var(--accento);
+      border-radius: 50%;
+      animation: gira 0.8s linear infinite;
+    }
+    @keyframes gira { to { transform: rotate(360deg); } }
+
+    /* ── MESSAGGIO DI ERRORE ── */
+    .stato-errore {
+      background: #1a0a0a;
+      border: 1px solid #3a1a1a;
+      border-radius: 10px;
+      padding: 1.25rem;
+      font-size: 0.85rem;
+      color: #f87171;
+      line-height: 1.5;
+    }
+    .stato-errore strong { display: block; margin-bottom: 0.5rem; }
+    .stato-errore code {
+      display: block;
+      background: #0d0d0d;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: var(--testo-muto);
+      margin-top: 0.5rem;
+      word-break: break-all;
+    }
+
+    /* ── CARTA EVENTO ── */
+    .carta-evento {
+      background-color: var(--superficie);
+      border: 1px solid var(--bordo);
+      border-radius: 10px;
+      padding: 1rem 1.125rem;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+    .carta-evento:hover { border-color: var(--accento); background-color: #1f1a16; }
+    .carta-evento.attiva { border-color: var(--accento); background-color: #1f1a16; box-shadow: 0 0 0 1px var(--accento); }
+
+    .data-blocco { text-align: center; min-width: 44px; flex-shrink: 0; }
+    .data-giorno { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; color: var(--accento); line-height: 1; }
+    .data-mese { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--testo-muto); line-height: 1.2; }
+
+    .carta-corpo { flex: 1; min-width: 0; }
+    .carta-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.375rem; }
+
+    .nome-evento { font-size: 0.9rem; font-weight: 600; color: var(--testo); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .badge { font-size: 0.62rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.2rem 0.55rem; border-radius: 999px; flex-shrink: 0; }
+    .badge-discoteca  { background: #1a0a2e; color: #a78bfa; }
+    .badge-festa      { background: #1a1500; color: #fbbf24; }
+    .badge-aperitivo  { background: #0a1f0a; color: #4ade80; }
+    .badge-concerto   { background: #1a0a0a; color: #f87171; }
+
+    .carta-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.78rem; color: var(--testo-muto); }
+    .meta-item { display: flex; align-items: center; gap: 0.3rem; }
+    .meta-item svg { width: 12px; height: 12px; color: var(--accento); flex-shrink: 0; }
+
+    /* ── PANNELLO MAPPA ── */
+    .pannello-mappa { flex: 1; position: relative; }
+    #mappa { width: 100%; height: 100%; }
+
+    /* Popup Leaflet tema scuro */
+    .leaflet-popup-content-wrapper { background-color: var(--superficie) !important; color: var(--testo) !important; border: 1px solid var(--bordo) !important; border-radius: 10px !important; box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important; }
+    .leaflet-popup-tip { background-color: var(--superficie) !important; }
+    .leaflet-popup-content { margin: 12px 16px !important; font-family: 'DM Sans', sans-serif !important; }
+    .popup-titolo { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; color: #f0ede8; }
+    .popup-dettaglio { font-size: 0.78rem; color: #888480; }
+
+    /* ── MOBILE ── */
+    @media (max-width: 700px) {
+      body { overflow: auto; height: auto; }
+      .layout { flex-direction: column; height: auto; }
+      .pannello-lista { width: 100%; border-right: none; border-bottom: 1px solid var(--bordo); overflow-y: visible; }
+      .pannello-mappa { height: 320px; flex-shrink: 0; order: -1; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="#" class="logo">Padova<span>Notte</span></a>
+    <span class="contatore"><strong id="num-eventi">—</strong> eventi in programma</span>
+  </header>
+
+  <div class="layout">
+
+    <aside class="pannello-lista" id="pannello-lista">
+      <div class="lista-header">
+        <h1>Prossimi <em>eventi</em></h1>
+        <p>Padova &amp; dintorni — clicca per vedere sulla mappa</p>
+      </div>
+
+      <!-- 
+        Spinner di caricamento: visibile finché i dati non arrivano.
+        Il JavaScript lo rimuove e inserisce le carte al suo posto.
+      -->
+      <div class="stato-caricamento" id="stato">
+        <div class="spinner"></div>
+        <span>Caricamento eventi…</span>
+      </div>
+
+    </aside>
+
+    <div class="pannello-mappa">
+      <div id="mappa"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ══════════════════════════════════════════════════════════
+    // ⚙️  CONFIGURAZIONE — modifica solo questa parte
+    // ══════════════════════════════════════════════════════════
+
+    /*
+      Incolla qui l'URL del tuo Google Sheet pubblicato come CSV.
+      
+      Come ottenerlo:
+      1. Apri il foglio Google
+      2. File → Condividi → Pubblica sul Web
+      3. Seleziona "Foglio1" e formato "Valori separati da virgole (.csv)"
+      4. Clicca "Pubblica" e copia l'URL
+      
+      Esempio di URL:
+      https://docs.google.com/spreadsheets/d/XXXXXXX/pub?gid=0&single=true&output=csv
+    */
+    const URL_FOGLIO = 'INCOLLA_QUI_IL_TUO_URL';
+
+    // ══════════════════════════════════════════════════════════
+
+    // Inizializza mappa centrata su Padova
+    const mappa = L.map('mappa').setView([45.42, 11.88], 11);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CARTO',
+      maxZoom: 19
+    }).addTo(mappa);
+
+    let markers = [];
+    let attivo  = null;
+
+    // ── ICONA MARKER ──────────────────────────────────────────
+    function creaIcona(attiva) {
+      const s = attiva ? 18 : 13;
+      return L.divIcon({
+        className: '',
+        html: `<div style="width:${s}px;height:${s}px;background:#ff6b35;border:2px solid ${attiva ? '#fff' : '#ff6b35'};border-radius:50%;box-shadow:0 0 ${attiva ? 10 : 4}px rgba(255,107,53,0.7);"></div>`,
+        iconSize: [s, s], iconAnchor: [s / 2, s / 2]
+      });
+    }
+
+    // ── COSTRUISCE L'HTML DI UNA CARTA EVENTO ─────────────────
+    /*
+      Questa funzione riceve un oggetto "evento" (una riga del foglio)
+      e restituisce il codice HTML della carta corrispondente.
+      
+      Template literal (backtick `...`): permette di scrivere HTML
+      dentro JavaScript con variabili inserite tramite ${...}.
+    */
+    function creaCarta(evento, indice) {
+      const iconeOrologio = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+      const iconeLuogo    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+
+      // Converte "Maggio 2025" → "Mag / 2025" per la visualizzazione
+      const partiData = evento.mese_anno.split(' ');
+      const mese3     = partiData[0] ? partiData[0].substring(0, 3) : '';
+      const anno      = partiData[1] || '';
+
+      return `
+        <div class="carta-evento" data-id="${indice}" onclick="selezionaEvento(${indice})">
+          <div class="data-blocco">
+            <div class="data-giorno">${evento.giorno}</div>
+            <div class="data-mese">${mese3}<br>${anno}</div>
+          </div>
+          <div class="carta-corpo">
+            <div class="carta-top">
+              <span class="nome-evento">${evento.nome}</span>
+              <span class="badge badge-${evento.tipo}">${badgeLabel(evento.tipo)}</span>
+            </div>
+            <div class="carta-meta">
+              <span class="meta-item">${iconeOrologio}${evento.orario}</span>
+              <span class="meta-item">${iconeLuogo}${evento.zona}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Converte il tipo in etichetta leggibile per il badge
+    function badgeLabel(tipo) {
+      const etichette = { discoteca: 'Disco', festa: 'Festa', aperitivo: 'Aperitivo', concerto: 'Concerto' };
+      return etichette[tipo] || tipo;
+    }
+
+    // ── CARICAMENTO DATI DAL GOOGLE SHEET ────────────────────
+    /*
+      Papa.parse() scarica il CSV dall'URL e lo converte in un
+      array di oggetti JavaScript. Ogni riga del foglio diventa
+      un oggetto con le colonne come chiavi.
+      
+      Esempio riga CSV:  Saturday Night Fever, 10, Maggio 2025, ...
+      Diventa oggetto:   { nome: "Saturday Night Fever", giorno: "10", ... }
+    */
+    Papa.parse(URL_FOGLIO, {
+      download: true,    // Scarica il file dall'URL
+      header:   true,    // La prima riga è l'intestazione (nomi colonne)
+      skipEmptyLines: true,
+
+      // "complete" viene chiamata quando il parsing è finito con successo
+      complete: function(risultati) {
+        const eventi  = risultati.data;
+        const stato   = document.getElementById('stato');
+        const lista   = document.getElementById('pannello-lista');
+        const counter = document.getElementById('num-eventi');
+
+        // Aggiorna il contatore nell'header
+        counter.textContent = eventi.length;
+
+        // Rimuove lo spinner
+        stato.remove();
+
+        // Costruisce le carte e le aggiunge alla lista
+        eventi.forEach((evento, i) => {
+          lista.insertAdjacentHTML('beforeend', creaCarta(evento, i));
+
+          // Aggiunge il marker sulla mappa per questo evento
+          const lat = parseFloat(evento.lat);
+          const lng = parseFloat(evento.lng);
+
+          if (!isNaN(lat) && !isNaN(lng)) {
+            const m = L.marker([lat, lng], { icon: creaIcona(false) }).addTo(mappa);
+            m.bindPopup(`
+              <div class="popup-titolo">${evento.nome}</div>
+              <div class="popup-dettaglio">🕐 ${evento.orario}</div>
+              <div class="popup-dettaglio">📍 ${evento.luogo}</div>
+            `);
+            m.on('click', () => evidenziaCarta(i));
+            markers[i] = m;
+          }
+        });
+      },
+
+      // "error" viene chiamata se c'è un problema (URL sbagliato, foglio privato, ecc.)
+      error: function(err) {
+        document.getElementById('stato').innerHTML = `
+          <div class="stato-errore">
+            <strong>⚠️ Impossibile caricare gli eventi</strong>
+            Controlla che l'URL del foglio sia corretto e che il foglio
+            sia pubblicato come CSV (File → Pubblica sul Web).
+            <code>${URL_FOGLIO}</code>
+          </div>
+        `;
+      }
+    });
+
+    // ── INTERATTIVITÀ ─────────────────────────────────────────
+
+    function selezionaEvento(i) {
+      if (attivo !== null) {
+        document.querySelector(`.carta-evento[data-id="${attivo}"]`).classList.remove('attiva');
+        if (markers[attivo]) markers[attivo].setIcon(creaIcona(false));
+      }
+      attivo = i;
+      document.querySelector(`.carta-evento[data-id="${i}"]`).classList.add('attiva');
+      if (markers[i]) {
+        markers[i].setIcon(creaIcona(true));
+        mappa.panTo(markers[i].getLatLng());
+        markers[i].openPopup();
+      }
+    }
+
+    function evidenziaCarta(i) {
+      if (attivo !== null) {
+        document.querySelector(`.carta-evento[data-id="${attivo}"]`).classList.remove('attiva');
+        if (markers[attivo]) markers[attivo].setIcon(creaIcona(false));
+      }
+      attivo = i;
+      const carta = document.querySelector(`.carta-evento[data-id="${i}"]`);
+      if (carta) { carta.classList.add('attiva'); carta.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+      if (markers[i]) markers[i].setIcon(creaIcona(true));
+    }
+  </script>
+
+</body>
+</html>
