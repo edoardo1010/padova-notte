@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PadovaNotte — Admin Eventi</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700&family=DM+Sans:wght@400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --bg:       #06030f;
+      --surface:  #100c1e;
+      --surface2: #1a1630;
+      --bordo:    #2a2448;
+      --testo:    #f0eeff;
+      --muto:     #7c7898;
+      --accento:  #8257e5;
+      --verde:    #34d399;
+      --rosso:    #f87171;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--testo);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--bordo);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--testo);
+      text-decoration: none;
+    }
+    .logo span { color: var(--accento); }
+
+    .header-badge {
+      background: var(--accento);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    /* ── LAYOUT ── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 800px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    /* ── PANNELLO ── */
+    .pannello {
+      background: var(--surface);
+      border: 1px solid var(--bordo);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .pannello-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--bordo);
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+    }
+
+    .pannello-titolo {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--testo);
+    }
+
+    .pannello-num {
+      width: 22px;
+      height: 22px;
+      background: var(--accento);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .pannello-corpo {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* ── FORM ── */
+    .riga-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .riga-form.tre { grid-template-columns: 1fr 1fr 1fr; }
+    .riga-form.intera { grid-template-columns: 1fr; }
+
+    .campo {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muto);
+    }
+
+    label .req { color: var(--accento); margin-left: 2px; }
+
+    input, select, textarea {
+      background: var(--surface2);
+      border: 1.5px solid var(--bordo);
+      border-radius: 8px;
+      color: var(--testo);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.875rem;
+      padding: 0.6rem 0.875rem;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accento);
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: var(--muto);
+      opacity: 0.6;
+    }
+
+    textarea { resize: vertical; min-height: 64px; }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%237c7898' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.875rem center;
+      padding-right: 2.25rem;
+      cursor: pointer;
+    }
+
+    /* Opzioni select colorate */
+    .tipo-discoteca { color: #c084fc; }
+    .tipo-aperitivo { color: #34d399; }
+    .tipo-concerto  { color: #f87171; }
+    .tipo-sagra     { color: #fbbf24; }
+    .tipo-festa     { color: #60a5fa; }
+
+    /* ── MAPPA COORDINATE ── */
+    .mappa-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muto);
+      margin-bottom: 0.375rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .mappa-hint {
+      font-size: 0.72rem;
+      color: var(--muto);
+      background: rgba(130,87,229,0.12);
+      border: 1px solid rgba(130,87,229,0.25);
+      border-radius: 6px;
+      padding: 0.35rem 0.65rem;
+      font-weight: 500;
+    }
+
+    #mappa-admin {
+      width: 100%;
+      height: 220px;
+      border-radius: 10px;
+      border: 1.5px solid var(--bordo);
+      margin-top: 0.375rem;
+    }
+
+    .coord-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    /* ── BOTTONE GENERA ── */
+    .btn-genera {
+      width: 100%;
+      padding: 0.875rem;
+      background: var(--accento);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity 0.18s, transform 0.18s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .btn-genera:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-genera:active { transform: translateY(0); }
+
+    .btn-genera svg { width: 16px; height: 16px; }
+
+    /* ── OUTPUT CODICE ── */
+    .output-wrapper {
+      position: relative;
+    }
+
+    .output-codice {
+      background: #0a0814;
+      border: 1.5px solid var(--bordo);
+      border-radius: 10px;
+      padding: 1.125rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      color: #c9c4e8;
+      white-space: pre;
+      overflow-x: auto;
+      min-height: 200px;
+      tab-size: 2;
+    }
+
+    /* Syntax highlight semplice via CSS */
+    .output-codice .k  { color: #c084fc; }  /* keyword */
+    .output-codice .s  { color: #34d399; }  /* string */
+    .output-codice .n  { color: #60a5fa; }  /* number */
+    .output-codice .c  { color: #4a4568; }  /* comment */
+
+    .placeholder-codice {
+      color: var(--muto);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      padding: 2rem 1rem;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* Bottone copia */
+    .btn-copia {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      background: var(--surface2);
+      border: 1px solid var(--bordo);
+      color: var(--muto);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s;
+    }
+    .btn-copia:hover { border-color: var(--accento); color: var(--testo); }
+    .btn-copia.copiato { background: var(--verde); border-color: var(--verde); color: #000; }
+    .btn-copia svg { width: 12px; height: 12px; }
+
+    /* ── ISTRUZIONI ── */
+    .istruzioni {
+      background: rgba(130,87,229,0.08);
+      border: 1px solid rgba(130,87,229,0.2);
+      border-radius: 10px;
+      padding: 1rem 1.125rem;
+      font-size: 0.82rem;
+      color: var(--muto);
+      line-height: 1.8;
+    }
+
+    .istruzioni strong { color: var(--testo); }
+
+    .istruzioni ol {
+      padding-left: 1.25rem;
+      margin-top: 0.5rem;
+    }
+
+    .istruzioni li { margin-bottom: 0.25rem; }
+
+    /* ── MESSAGGIO SUCCESSO ── */
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--verde);
+      color: #000;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 999px;
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      z-index: 9999;
+      pointer-events: none;
+    }
+    .toast.visibile { transform: translateX(-50%) translateY(0); }
+
+    /* ── VALIDAZIONE ── */
+    .campo.errore input,
+    .campo.errore select {
+      border-color: var(--rosso);
+    }
+
+    .msg-errore {
+      font-size: 0.7rem;
+      color: var(--rosso);
+      margin-top: 0.2rem;
+      display: none;
+    }
+
+    .campo.errore .msg-errore { display: block; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="index.html" class="logo">PADOVA<span>NOTTE</span></a>
+    <span class="header-badge">⚙️ Admin</span>
+  </header>
+
+  <div class="container">
+
+    <!-- COLONNA SINISTRA: form -->
+    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+      <!-- PANNELLO 1: dati evento -->
+      <div class="pannello">
+        <div class="pannello-header">
+          <div class="pannello-num">1</div>
+          <span class="pannello-titolo">Dati dell'evento</span>
+        </div>
+        <div class="pannello-corpo">
+
+          <div class="riga-form intera">
+            <div class="campo" id="campo-nome">
+              <label>Nome evento <span class="req">*</span></label>
+              <input type="text" id="nome" placeholder="es. Saturday Night Fever — Opening Estate">
+              <span class="msg-errore">Campo obbligatorio</span>
+            </div>
+          </div>
+
+          <div class="riga-form tre">
+            <div class="campo" id="campo-giorno">
+              <label>Giorno <span class="req">*</span></label>
+              <input type="number" id="giorno" placeholder="15" min="1" max="31">
+              <span class="msg-errore">Inserisci un giorno</span>
+            </div>
+            <div class="campo" id="campo-mese">
+              <label>Mese <span class="req">*</span></label>
+              <select id="mese">
+                <option value="">Seleziona</option>
+                <option>Gennaio</option><option>Febbraio</option>
+                <option>Marzo</option><option>Aprile</option>
+                <option>Maggio</option><option>Giugno</option>
+                <option>Luglio</option><option>Agosto</option>
+                <option>Settembre</option><option>Ottobre</option>
+                <option>Novembre</option><option>Dicembre</option>
+              </select>
+              <span class="msg-errore">Seleziona il mese</span>
+            </div>
+            <div class="campo" id="campo-anno">
+              <label>Anno <span class="req">*</span></label>
+              <input type="number" id="anno" placeholder="2026" min="2024" max="2030">
+              <span class="msg-errore">Inserisci l'anno</span>
+            </div>
+          </div>
+
+          <div class="riga-form">
+            <div class="campo" id="campo-orario">
+              <label>Orario <span class="req">*</span></label>
+              <input type="text" id="orario" placeholder="es. 23:00 – 05:00">
+              <span class="msg-errore">Campo obbligatorio</span>
+            </div>
+            <div class="campo" id="campo-prezzo">
+              <label>Prezzo <span class="req">*</span></label>
+              <input type="text" id="prezzo" placeholder="es. €10 ingresso / Gratuito">
+              <span class="msg-errore">Campo obbligatorio</span>
+            </div>
+          </div>
+
+          <div class="riga-form">
+            <div class="campo" id="campo-tipo">
+              <label>Tipo evento <span class="req">*</span></label>
+              <select id="tipo">
+                <option value="">Seleziona tipo</option>
+                <option value="discoteca">🟣 Discoteca</option>
+                <option value="aperitivo">🟢 Aperitivo</option>
+                <option value="concerto">🔴 Concerto</option>
+                <option value="sagra">🟡 Sagra</option>
+                <option value="festa">🔵 Festa</option>
+              </select>
+              <span class="msg-errore">Seleziona il tipo</span>
+            </div>
+            <div class="campo" id="campo-target">
+              <label>Target età <span class="req">*</span></label>
+              <select id="target">
+                <option value="">Seleziona target</option>
+                <option value="18-35">🟣 18–35 anni</option>
+                <option value="over35">🔵 Over 35</option>
+                <option value="famiglie">🟡 Famiglie</option>
+              </select>
+              <span class="msg-errore">Seleziona il target</span>
+            </div>
+          </div>
+
+          <div class="riga-form intera">
+            <div class="campo" id="campo-location">
+              <label>Nome location <span class="req">*</span></label>
+              <input type="text" id="location" placeholder="es. Villa Bonin">
+              <span class="msg-errore">Campo obbligatorio</span>
+            </div>
+          </div>
+
+          <div class="riga-form intera">
+            <div class="campo" id="campo-indirizzo">
+              <label>Indirizzo completo <span class="req">*</span></label>
+              <input type="text" id="indirizzo" placeholder="es. Via Vicentina 48, Longare (VI)">
+              <span class="msg-errore">Campo obbligatorio</span>
+            </div>
+          </div>
+
+          <div class="riga-form intera">
+            <div class="campo">
+              <label>Note aggiuntive</label>
+              <textarea id="note" placeholder="es. Dress code: no sportswear / Prenotazione consigliata"></textarea>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- PANNELLO 2: coordinate -->
+      <div class="pannello">
+        <div class="pannello-header">
+          <div class="pannello-num">2</div>
+          <span class="pannello-titolo">Posizione sulla mappa</span>
+        </div>
+        <div class="pannello-corpo">
+
+          <div class="mappa-label">
+            <span>Clicca sulla mappa per impostare le coordinate</span>
+            <span class="mappa-hint">💡 Puoi anche cercare l'indirizzo su Google Maps → tasto destro → copia coordinate</span>
+          </div>
+
+          <div id="mappa-admin"></div>
+
+          <div class="coord-row">
+            <div class="campo" id="campo-lat">
+              <label>Latitudine <span class="req">*</span></label>
+              <input type="text" id="lat" placeholder="es. 45.4064" readonly>
+              <span class="msg-errore">Clicca sulla mappa</span>
+            </div>
+            <div class="campo" id="campo-lng">
+              <label>Longitudine <span class="req">*</span></label>
+              <input type="text" id="lng" placeholder="es. 11.8768" readonly>
+              <span class="msg-errore">Clicca sulla mappa</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COLONNA DESTRA: output -->
+    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+      <!-- PULSANTE GENERA -->
+      <button class="btn-genera" onclick="genera()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        </svg>
+        Genera codice evento
+      </button>
+
+      <!-- OUTPUT -->
+      <div class="pannello">
+        <div class="pannello-header">
+          <div class="pannello-num">3</div>
+          <span class="pannello-titolo">Codice generato — copia e incolla</span>
+        </div>
+        <div class="pannello-corpo">
+
+          <div class="output-wrapper">
+            <div class="output-codice" id="output">
+              <div class="placeholder-codice">
+                ✦ Compila il modulo e clicca<br>
+                "Genera codice evento"<br><br>
+                Il codice apparirà qui pronto<br>
+                da copiare in <strong>index.html</strong>
+              </div>
+            </div>
+            <button class="btn-copia" id="btn-copia" onclick="copia()" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              Copia
+            </button>
+          </div>
+
+          <div class="istruzioni">
+            <strong>Come inserire l'evento nel sito:</strong>
+            <ol>
+              <li>Genera il codice con il pulsante sopra</li>
+              <li>Clicca <strong>Copia</strong></li>
+              <li>Apri <strong>index.html</strong> con VS Code</li>
+              <li>Cerca <code style="color:var(--accento)">const EVENTI = [</code></li>
+              <li>Incolla il codice <strong>dopo la prima parentesi graffa aperta</strong> dell'ultimo evento, prima della <code style="color:var(--accento)">];</code> finale</li>
+              <li>Salva e carica su GitHub</li>
+            </ol>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Toast notifica -->
+  <div class="toast" id="toast">✓ Codice copiato!</div>
+
+  <script>
+    // ── MAPPA COORDINATE ──────────────────────────────────────
+    const mappaAdmin = L.map('mappa-admin').setView([45.42, 11.88], 11);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CARTO', maxZoom: 19
+    }).addTo(mappaAdmin);
+
+    let markerAdmin = null;
+
+    mappaAdmin.on('click', function(e) {
+      const lat = e.latlng.lat.toFixed(6);
+      const lng = e.latlng.lng.toFixed(6);
+
+      document.getElementById('lat').value = lat;
+      document.getElementById('lng').value = lng;
+
+      // Rimuovi marker precedente e aggiungi nuovo
+      if (markerAdmin) mappaAdmin.removeLayer(markerAdmin);
+      markerAdmin = L.circleMarker([lat, lng], {
+        radius: 8,
+        fillColor: '#8257e5',
+        color: '#fff',
+        weight: 2,
+        fillOpacity: 1
+      }).addTo(mappaAdmin);
+
+      // Rimuovi stile errore se c'era
+      document.getElementById('campo-lat').classList.remove('errore');
+      document.getElementById('campo-lng').classList.remove('errore');
+    });
+
+    // ── GENERA CODICE ─────────────────────────────────────────
+    function genera() {
+      const campiObbligatori = [
+        { id: 'nome',      campo: 'campo-nome' },
+        { id: 'giorno',    campo: 'campo-giorno' },
+        { id: 'mese',      campo: 'campo-mese' },
+        { id: 'anno',      campo: 'campo-anno' },
+        { id: 'orario',    campo: 'campo-orario' },
+        { id: 'prezzo',    campo: 'campo-prezzo' },
+        { id: 'tipo',      campo: 'campo-tipo' },
+        { id: 'target',    campo: 'campo-target' },
+        { id: 'location',  campo: 'campo-location' },
+        { id: 'indirizzo', campo: 'campo-indirizzo' },
+        { id: 'lat',       campo: 'campo-lat' },
+        { id: 'lng',       campo: 'campo-lng' },
+      ];
+
+      let errori = false;
+      campiObbligatori.forEach(({ id, campo }) => {
+        const val = document.getElementById(id).value.trim();
+        const div = document.getElementById(campo);
+        if (!val) {
+          div.classList.add('errore');
+          errori = true;
+        } else {
+          div.classList.remove('errore');
+        }
+      });
+
+      if (errori) {
+        document.querySelector('.campo.errore input, .campo.errore select')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      // Raccoglie valori
+      const v = {
+        nome:      document.getElementById('nome').value.trim(),
+        giorno:    parseInt(document.getElementById('giorno').value),
+        mese:      document.getElementById('mese').value,
+        anno:      parseInt(document.getElementById('anno').value),
+        orario:    document.getElementById('orario').value.trim(),
+        location:  document.getElementById('location').value.trim(),
+        indirizzo: document.getElementById('indirizzo').value.trim(),
+        prezzo:    document.getElementById('prezzo').value.trim(),
+        tipo:      document.getElementById('tipo').value,
+        target:    document.getElementById('target').value,
+        lat:       parseFloat(document.getElementById('lat').value),
+        lng:       parseFloat(document.getElementById('lng').value),
+        note:      document.getElementById('note').value.trim(),
+      };
+
+      // Genera il codice con syntax highlight HTML
+      const codice = `      {
+        nome:      "${v.nome}",
+        giorno:    ${v.giorno}, mese: "${v.mese}", anno: ${v.anno},
+        orario:    "${v.orario}",
+        location:  "${v.location}",
+        indirizzo: "${v.indirizzo}",
+        prezzo:    "${v.prezzo}",
+        tipo:      "${v.tipo}", target: "${v.target}",
+        lat: ${v.lat}, lng: ${v.lng},
+        note:      "${v.note}"
+      },`;
+
+      // Mostra con syntax highlight
+      const html = codice
+        .replace(/(nome|giorno|mese|anno|orario|location|indirizzo|prezzo|tipo|target|lat|lng|note)(?=:)/g, '<span class="k">$1</span>')
+        .replace(/"([^"]*)"/g, '<span class="s">"$1"</span>')
+        .replace(/\b(\d+\.?\d*)\b(?![^<]*>)/g, '<span class="n">$1</span>');
+
+      document.getElementById('output').innerHTML = html;
+      document.getElementById('btn-copia').style.display = 'flex';
+
+      // Salva il testo puro per la copia
+      document.getElementById('output').dataset.testo = codice;
+    }
+
+    // ── COPIA NEGLI APPUNTI ───────────────────────────────────
+    function copia() {
+      const testo = document.getElementById('output').dataset.testo;
+      if (!testo) return;
+
+      navigator.clipboard.writeText(testo).then(() => {
+        const btn = document.getElementById('btn-copia');
+        btn.classList.add('copiato');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copiato!`;
+
+        const toast = document.getElementById('toast');
+        toast.classList.add('visibile');
+
+        setTimeout(() => {
+          btn.classList.remove('copiato');
+          btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copia`;
+          toast.classList.remove('visibile');
+        }, 2500);
+      });
+    }
+
+    // ── ANNO DEFAULT ─────────────────────────────────────────
+    document.getElementById('anno').value = new Date().getFullYear();
+  </script>
+
+</body>
+</html>
